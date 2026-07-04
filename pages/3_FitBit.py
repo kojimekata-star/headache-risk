@@ -88,7 +88,7 @@ st.subheader("同期済みデータ確認")
 from lib.database import get_conn
 with get_conn() as conn:
     sleep_count = conn.execute("SELECT COUNT(*) as c FROM fitbit_sleep").fetchone()["c"]
-    hrv_count = conn.execute("SELECT COUNT(*) as c FROM fitbit_hrv WHERE rmssd IS NOT NULL").fetchone()["c"]
+    hrv_count = conn.execute("SELECT COUNT(*) as c FROM fitbit_hrv WHERE resting_hr IS NOT NULL").fetchone()["c"]
     pressure_count = conn.execute("SELECT COUNT(*) as c FROM pressure_log").fetchone()["c"]
     latest_sleep = conn.execute("SELECT date FROM fitbit_sleep ORDER BY date DESC LIMIT 1").fetchone()
     latest_hrv = conn.execute("SELECT date FROM fitbit_hrv ORDER BY date DESC LIMIT 1").fetchone()
