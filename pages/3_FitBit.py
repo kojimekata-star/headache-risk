@@ -101,3 +101,21 @@ c2.metric("HRVデータ", f"{hrv_count}日分",
           delta=latest_hrv["date"] if latest_hrv else "なし")
 c3.metric("気圧データ", f"{pressure_count}件",
           delta=latest_pressure["timestamp"][:16] if latest_pressure else "なし")
+st.divider()
+st.subheader("🔍 デバッグ")
+if st.button("APIレスポンスを確認"):
+    from lib.fitbit import _fitness_get, _get_valid_token
+    from datetime import datetime as dt2
+    token = _get_valid_token()
+    st.write("トークン存在:", token is not None)
+    today = dt2.now().date().strftime("%Y-%m-%d")
+    d = dt2.strptime(today, "%Y-%m-%d")
+    result = _fitness_get(
+        "/users/me/sessions",
+        params={
+            "startTime": d.strftime("%Y-%m-%dT00:00:00.000Z"),
+            "endTime": d.strftime("%Y-%m-%dT23:59:59.000Z"),
+            "activityType": 72,
+        }
+    )
+    st.write("APIレスポンス:", result)
