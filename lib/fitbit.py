@@ -8,6 +8,7 @@ from lib.database import get_conn
 SCOPES = [
     "https://www.googleapis.com/auth/googlehealth.sleep.readonly",
     "https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly",
+    "https://www.googleapis.com/auth/health.metrics_and_measurements.readonly",
 ]
 
 def _creds():
