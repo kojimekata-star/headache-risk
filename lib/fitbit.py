@@ -169,41 +169,22 @@ def sync_sleep(date_str: str) -> bool:
     return True
 
 def sync_hrv(date_str: str) -> bool:
-    from datetime import datetime, timedelta
-
-    token = _get_valid_token()
-    if not token:
-        return False
-
-    # 翌日の日付を計算
-    next_date = (datetime.strptime(date_str, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
-
-    # dailyRollUpはPOSTリクエスト
-    resp = requests.post(
-        "https://health.googleapis.com/v4/users/me/dataTypes/daily-resting-heart-rate/dataPoints:dailyRollUp",
-        headers={"Authorization": f"Bearer {token}"},
-        json={
-            "range": {
-                "start": {"date": {"year": int(date_str[:4]), "month": int(date_str[5:7]), "day": int(date_str[8:10])}},
-                "end":   {"date": {"year": int(next_date[:4]), "month": int(next_date[5:7]), "day": int(next_date[8:10])}},
-            }
-        },
-        timeout=10,
+    data = _health_get(
+        "/users/me/dataTypes/daily-resting-heart-rate/dataPoints",
+        params={"pageSize": 30}
     )
-    if not resp.ok:
-        raise RuntimeError(f"HTTP {resp.status_code}: {resp.text[:500]}")
 
-    data = resp.json()
     resting_hr = None
-    for point in data.get("rollupDataPoints", []):
-        hr_range = point.get("restingHeartRatePersonalRange", {})
-        bpm_min = hr_range.get("beatsPerMinuteMin")
-        bpm_max = hr_range.get("beatsPerMinuteMax")
-        if bpm_min and bpm_max:
-            resting_hr = (bpm_min + bpm_max) / 2  # 中央値を使用
-            break
+    if data and data.get("dataPoints"):
+        for point in data["dataPoints"]:
+            rhr = point.get("dailyRestingHeartRate", {})
+            date_obj = rhr.get("date", {})
+            point_date = f"{date_obj.get('year', '')}-{str(date_obj.get('month', '')).zfill(2)}-{str(date_obj.get('day', '')).zfill(2)}"
+            if point_date == date_str:
+                resting_hr = int(rhr.get("beatsPerMinute", 0))
+                break
 
-    if resting_hr is None:
+    if not resting_hr:
         return False
 
     with get_conn() as conn:
