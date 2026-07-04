@@ -82,10 +82,11 @@ def compute_risk(date_str: str | None = None) -> dict:
     pressure = _pressure_score()
 
     weights = {"sleep": 0.35, "hrv": 0.35, "pressure": 0.30}
-    total = sleep * weights["sleep"] + hrv * weights["hrv"] + pressure * weights["pressure"]
+   total = sleep * weights["sleep"] + hrv * weights["hrv"] + pressure * weights["pressure"]
+    total = min(max(total, 0.0), 1.0)
 
     def pct(v):
-        return round(v * 100)
+        return round(min(max(v, 0.0), 1.0) * 100))
 
     return {
         "date": date_str,
