@@ -171,22 +171,15 @@ def sync_sleep(date_str: str) -> bool:
     return True
 
 def sync_hrv(date_str: str) -> bool:
+    from datetime import datetime, timedelta
     data = _health_get(
-        "/users/me/dataTypes/daily-resting-heart-rate/dataPoints:dailyRollUp",
-        params=None
+        "/users/me/dataTypes/daily-resting-heart-rate/dataPoints:list",
+        params={"filter": f'daily_resting_heart_rate.sample_time.physical_time >= "{date_str}T00:00:00Z" AND daily_resting_heart_rate.sample_time.physical_time < "{(datetime.strptime(date_str, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")}T00:00:00Z"'}
     )
     resting_hr = None
-    if data and data.get("rollupDataPoints"):
-        for point in data["rollupDataPoints"]:
-            civil = point.get("civilStartTime", {}).get("date", {})
-            y = civil.get("year")
-            m = civil.get("month")
-            d = civil.get("day")
-            if y and m and d:
-                point_date = f"{y}-{m:02d}-{d:02d}"
-                if point_date == date_str:
-                    resting_hr = point.get("dailyRestingHeartRate", {}).get("beatsPerMinute")
-                    break
+    if data and data.get("dataPoints"):
+        point = data["dataPoints"][0]
+        resting_hr = point.get("dailyRestingHeartRate", {}).get("beatsPerMinute")
     if resting_hr is None:
         return False
     with get_conn() as conn:
