@@ -6,9 +6,9 @@ from urllib.parse import urlencode
 from lib.database import get_conn
 
 SCOPES = [
-    "https://www.googleapis.com/auth/fitness.sleep.read",
-    "https://www.googleapis.com/auth/fitness.heart_rate.read",
-    "https://www.googleapis.com/auth/fitness.activity.read",
+    "https://www.googleapis.com/auth/health.sleep.readonly",
+    "https://www.googleapis.com/auth/health.heart_rate.readonly",
+    "https://www.googleapis.com/auth/health.activity.readonly",
 ]
 
 def _creds():
@@ -88,78 +88,59 @@ def _get_valid_token() -> str | None:
         return new_tokens["access_token"]
     return None
 
-def _fitness_get(path: str, params: dict = None) -> dict | None:
+def _health_get(path: str, params: dict = None) -> dict | None:
     token = _get_valid_token()
     if not token:
         return None
     resp = requests.get(
-        f"https://www.googleapis.com/fitness/v1{path}",
+        f"https://health.googleapis.com/v4{path}",
         headers={"Authorization": f"Bearer {token}"},
         params=params,
         timeout=10,
     )
     return resp.json()
 
-def sync_sleep(date_str: str) -> bool:
-    from datetime import datetime
-    dt = datetime.strptime(date_str, "%Y-%m-%d")
-    start_ms = int(dt.timestamp() * 1000)
-    end_ms = start_ms + 86400000
+# デバッグ用（3_FitBit.pyから呼び出し）
+def _fitness_get(path: str, params: dict = None) -> dict | None:
+    return _health_get(path, params)
 
-    data = _fitness_get(
-        "/users/me/sessions",
+def sync_sleep(date_str: str) -> bool:
+    from datetime import datetime, timezone
+    dt = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    data = _health_get(
+        "/users/-/sleepSessions",
         params={
-            "startTime": dt.strftime("%Y-%m-%dT00:00:00.000Z"),
-            "endTime": dt.strftime("%Y-%m-%dT23:59:59.000Z"),
-            "activityType": 72,
+            "startTime": dt.strftime("%Y-%m-%dT00:00:00Z"),
+            "endTime": dt.strftime("%Y-%m-%dT23:59:59Z"),
         }
     )
-
     if not data or not data.get("session"):
         return False
-
     session = data["session"][0]
-    start_time = session.get("startTimeMillis", "0")
-    end_time = session.get("endTimeMillis", "0")
-    duration_min = (int(end_time) - int(start_time)) // 60000
-
+    start_ms = session.get("startTimeMillis", "0")
+    end_ms = session.get("endTimeMillis", "0")
+    duration_min = (int(end_ms) - int(start_ms)) // 60000
     with get_conn() as conn:
         conn.execute("""
             INSERT OR REPLACE INTO fitbit_sleep
             (date, sleep_start, sleep_end, duration_min, efficiency, deep_min, light_min, rem_min, wake_min)
             VALUES (?,?,?,?,?,?,?,?,?)
-        """, (
-            date_str,
-            start_time,
-            end_time,
-            duration_min,
-            0, 0, 0, 0, 0,
-        ))
+        """, (date_str, start_ms, end_ms, duration_min, 0, 0, 0, 0, 0))
     return True
 
 def sync_hrv(date_str: str) -> bool:
-    from datetime import datetime
-    dt = datetime.strptime(date_str, "%Y-%m-%d")
-
-    data = _fitness_get(
-        "/users/me/dataset:aggregate",
+    from datetime import datetime, timezone
+    dt = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    data = _health_get(
+        "/users/-/heartRate:dailyAggregation",
+        params={"date": date_str}
     )
-
-    # Heart rate via REST
-    hr_data = _fitness_get(
-        "/users/me/dataSources/derived:com.google.heart_rate.bpm:com.google.android.gms:merge_heart_rate_bpm/datasets/"
-        f"{int(dt.timestamp() * 1000000000)}-{int(dt.timestamp() * 1000000000) + 86400000000000}"
-    )
-
     resting_hr = None
-    if hr_data and hr_data.get("point"):
-        values = [p["value"][0]["fpVal"] for p in hr_data["point"] if p.get("value")]
-        if values:
-            resting_hr = sum(values) / len(values)
-
+    if data and data.get("dailyHeartRateMetrics"):
+        metrics = data["dailyHeartRateMetrics"]
+        resting_hr = metrics.get("restingHeartRate")
     if resting_hr is None:
         return False
-
     with get_conn() as conn:
         conn.execute("""
             INSERT OR REPLACE INTO fitbit_hrv (date, rmssd, resting_hr, coverage)
