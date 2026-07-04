@@ -7,7 +7,6 @@ from lib.database import get_conn
 
 SCOPES = [
     "https://www.googleapis.com/auth/googlehealth.sleep.readonly",
-    "https://www.googleapis.com/auth/googlehealth.health_metrics.readonly",
     "https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly",
 ]
 
