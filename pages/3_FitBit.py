@@ -126,3 +126,10 @@ if st.button("トークンをリセットして再認証する", type="primary")
         conn.execute("DELETE FROM fitbit_tokens")
     st.success("トークンをリセットしました。Homeページから再認証してください。")
     st.rerun()
+st.divider()
+st.subheader("🗑️ データリセット")
+if st.button("睡眠データをリセット", type="secondary"):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM fitbit_sleep")
+    st.success("睡眠データをリセットしました。再同期してください。")
+    st.rerun()
