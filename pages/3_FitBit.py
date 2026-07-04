@@ -109,8 +109,9 @@ if st.button("APIレスポンスを確認"):
     token = _get_valid_token()
     st.write("トークン存在:", token is not None)
     resp = requests.get(
-        "https://health.googleapis.com/v4/users/me/dataTypes/daily-resting-heart-rate/dataPoints:dailyRollUp",
+        "https://health.googleapis.com/v4/users/me/dataTypes/daily-resting-heart-rate/dataPoints",
         headers={"Authorization": f"Bearer {token}"},
+        params={"pageSize": 5},
         timeout=10,
     )
     st.write("ステータスコード:", resp.status_code)
