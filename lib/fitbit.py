@@ -97,7 +97,9 @@ def _health_get(path: str, params: dict = None) -> dict | None:
         params=params,
         timeout=10,
     )
-    return resp.json()
+    if not resp.ok:
+    raise RuntimeError(f"HTTP {resp.status_code}: {resp.text[:500]}")
+return resp.json()
 
 def _fitness_get(path: str, params: dict = None) -> dict | None:
     return _health_get(path, params)
