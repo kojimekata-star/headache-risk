@@ -27,7 +27,7 @@ if "code" in params:
 
 # Connection status
 tokens = get_tokens()
-client_id = os.getenv("FITBIT_CLIENT_ID", "")
+client_id = os.getenv("GOOGLE_CLIENT_ID", "")
 
 st.subheader("接続状態")
 col1, col2 = st.columns(2)
@@ -45,7 +45,7 @@ with col1:
 
 with col2:
     if not client_id:
-        st.warning("FITBIT_CLIENT_ID が .env に未設定です")
+        st.warning(GOOGLE_CLIENT_SECRET が .env に未設定です")
     elif not tokens:
         if st.button("⌚ FitBitと連携する", type="primary"):
             auth_url = get_auth_url()
