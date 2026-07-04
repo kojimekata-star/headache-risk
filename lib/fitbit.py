@@ -98,16 +98,12 @@ def _health_get(path: str, params: dict = None) -> dict | None:
         timeout=10,
     )
     if not resp.ok:
-    raise RuntimeError(f"HTTP {resp.status_code}: {resp.text[:500]}")
-return resp.json()
-
-def _fitness_get(path: str, params: dict = None) -> dict | None:
-    return _health_get(path, params)
+        raise RuntimeError(f"HTTP {resp.status_code}: {resp.text[:500]}")
+    return resp.json()
 
 def sync_sleep(date_str: str) -> bool:
     from datetime import datetime, timedelta
-    
-    # フィルターなしで最新データを取得してJST日付で判定
+
     data = _health_get(
         "/users/me/dataTypes/sleep/dataPoints",
         params={"pageSize": 30}
@@ -115,7 +111,6 @@ def sync_sleep(date_str: str) -> bool:
     if not data or not data.get("dataPoints"):
         return False
 
-    # date_strに対応するJST就寝日のデータを探す
     target_point = None
     for point in data["dataPoints"]:
         sleep = point.get("sleep", {})
@@ -174,20 +169,30 @@ def sync_sleep(date_str: str) -> bool:
 
 def sync_hrv(date_str: str) -> bool:
     from datetime import datetime, timedelta
+
+    # 安静時心拍数を heart-rate データタイプから取得
     data = _health_get(
-        "/users/me/dataTypes/daily-resting-heart-rate/dataPoints:list",
-        params={"filter": f'daily_resting_heart_rate.sample_time.physical_time >= "{date_str}T00:00:00Z" AND daily_resting_heart_rate.sample_time.physical_time < "{(datetime.strptime(date_str, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")}T00:00:00Z"'}
+        "/users/me/dataTypes/heart-rate/dataPoints",
+        params={"pageSize": 50}
     )
+
     resting_hr = None
     if data and data.get("dataPoints"):
-        point = data["dataPoints"][0]
-        resting_hr = point.get("dailyRestingHeartRate", {}).get("beatsPerMinute")
+        for point in data["dataPoints"]:
+            hr_data = point.get("heartRate", {})
+            sample_time = hr_data.get("sampleTime", {}).get("physicalTime", "")
+            if sample_time.startswith(date_str):
+                bpm = hr_data.get("beatsPerMinute")
+                if bpm:
+                    resting_hr = bpm
+                    break
+
     if resting_hr is None:
         return False
+
     with get_conn() as conn:
         conn.execute("""
             INSERT OR REPLACE INTO fitbit_hrv (date, rmssd, resting_hr, coverage)
             VALUES (?,?,?,?)
         """, (date_str, None, resting_hr, None))
     return True
-
