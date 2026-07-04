@@ -12,7 +12,11 @@
       "Bash(sqlite3 data/headache.db \".tables\")",
       "Bash(sqlite3 data/headache.db \"SELECT count\\(*\\) FROM sqlite_master;\")",
       "Bash(python *)",
-      "Bash(git rm *)"
+      "Bash(git rm *)",
+      "Bash(git config *)",
+      "Bash(git commit *)",
+      "Bash(gh repo *)",
+      "Bash(git push *)"
     ]
   }
 }
