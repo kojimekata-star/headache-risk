@@ -12,7 +12,7 @@ def _creds():
 
 
 def _redirect_uri():
-    return os.getenv("FITBIT_REDIRECT_URI", "http://localhost:8501")
+    return os.getenv("FITBIT_REDIRECT_URI", "https://kojimekata-star-headache-risk-home-xwpblk.streamlit.app")
 
 
 def get_auth_url() -> str:

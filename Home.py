@@ -43,7 +43,7 @@ if not client_id_set:
     **セットアップ手順**
     1. [dev.fitbit.com](https://dev.fitbit.com) で開発者アカウントを作成
     2. "Register an App" → アプリ種別: **Personal**
-    3. Callback URL: `http://localhost:8501`
+    3. Callback URL: `https://kojimekata-star-headache-risk-home-xwpblk.streamlit.app`
     4. 取得した Client ID と Client Secret を `.env` ファイルに記入
     5. アプリを再起動
     """)

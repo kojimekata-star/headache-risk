@@ -121,14 +121,14 @@ with st.expander("手順を見る"):
        - **Description**: 任意
        - **Application Website URL**: `http://localhost`
        - **OAuth 2.0 Application Type**: **Personal**
-       - **Redirect URL**: `http://localhost:8501`
+       - **Redirect URL**: `https://kojimekata-star-headache-risk-home-xwpblk.streamlit.app`
        - **Default Access Type**: Read-Only
     5. 「Register」→ **OAuth 2.0 Client ID** と **Client Secret** をコピー
     6. プロジェクトに `.env` ファイルを作成:
     ```
     FITBIT_CLIENT_ID=ここにClient IDを貼る
     FITBIT_CLIENT_SECRET=ここにClient Secretを貼る
-    FITBIT_REDIRECT_URI=http://localhost:8501
+    FITBIT_REDIRECT_URI=https://kojimekata-star-headache-risk-home-xwpblk.streamlit.app
     ```
     7. アプリを再起動して「FitBitと連携する」ボタンを押す
     """)
