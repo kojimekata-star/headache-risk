@@ -5,10 +5,9 @@ import streamlit as st
 from urllib.parse import urlencode
 from lib.database import get_conn
 
-# Google Health API スコープ
 SCOPES = [
-    "https://www.googleapis.com/auth/fitness.heart_rate.read",
     "https://www.googleapis.com/auth/fitness.sleep.read",
+    "https://www.googleapis.com/auth/fitness.heart_rate.read",
     "https://www.googleapis.com/auth/fitness.activity.read",
 ]
 
@@ -71,7 +70,6 @@ def _get_valid_token() -> str | None:
         return None
     if time.time() < tokens["expires_at"] - 60:
         return tokens["access_token"]
-    # Refresh
     client_id, client_secret = _creds()
     resp = requests.post(
         "https://oauth2.googleapis.com/token",
@@ -90,22 +88,41 @@ def _get_valid_token() -> str | None:
         return new_tokens["access_token"]
     return None
 
-def _get(path: str) -> dict | None:
+def _fitness_get(path: str, params: dict = None) -> dict | None:
     token = _get_valid_token()
     if not token:
         return None
     resp = requests.get(
-        f"https://health.googleapis.com/v4{path}",
+        f"https://www.googleapis.com/fitness/v1{path}",
         headers={"Authorization": f"Bearer {token}"},
+        params=params,
         timeout=10,
     )
     return resp.json() if resp.status_code == 200 else None
 
 def sync_sleep(date_str: str) -> bool:
-    data = _get(f"/users/-/sleepSessions?startTime={date_str}T00:00:00Z&endTime={date_str}T23:59:59Z")
+    from datetime import datetime
+    dt = datetime.strptime(date_str, "%Y-%m-%d")
+    start_ms = int(dt.timestamp() * 1000)
+    end_ms = start_ms + 86400000
+
+    data = _fitness_get(
+        "/users/me/sessions",
+        params={
+            "startTime": dt.strftime("%Y-%m-%dT00:00:00.000Z"),
+            "endTime": dt.strftime("%Y-%m-%dT23:59:59.000Z"),
+            "activityType": 72,
+        }
+    )
+
     if not data or not data.get("session"):
         return False
-    sleep = data["session"][0]
+
+    session = data["session"][0]
+    start_time = session.get("startTimeMillis", "0")
+    end_time = session.get("endTimeMillis", "0")
+    duration_min = (int(end_time) - int(start_time)) // 60000
+
     with get_conn() as conn:
         conn.execute("""
             INSERT OR REPLACE INTO fitbit_sleep
@@ -113,34 +130,39 @@ def sync_sleep(date_str: str) -> bool:
             VALUES (?,?,?,?,?,?,?,?,?)
         """, (
             date_str,
-            sleep.get("startTime", ""),
-            sleep.get("endTime", ""),
-            sleep.get("duration", 0) // 60000,
-            sleep.get("efficiency", 0),
-            0, 0, 0, 0,
+            start_time,
+            end_time,
+            duration_min,
+            0, 0, 0, 0, 0,
         ))
     return True
 
 def sync_hrv(date_str: str) -> bool:
-    hr_data = _get(f"/users/-/heartRate:dailyAggregation?date={date_str}")
-    rmssd = None
+    from datetime import datetime
+    dt = datetime.strptime(date_str, "%Y-%m-%d")
+
+    data = _fitness_get(
+        "/users/me/dataset:aggregate",
+    )
+
+    # Heart rate via REST
+    hr_data = _fitness_get(
+        "/users/me/dataSources/derived:com.google.heart_rate.bpm:com.google.android.gms:merge_heart_rate_bpm/datasets/"
+        f"{int(dt.timestamp() * 1000000000)}-{int(dt.timestamp() * 1000000000) + 86400000000000}"
+    )
+
     resting_hr = None
-    coverage = None
+    if hr_data and hr_data.get("point"):
+        values = [p["value"][0]["fpVal"] for p in hr_data["point"] if p.get("value")]
+        if values:
+            resting_hr = sum(values) / len(values)
 
-    if hr_data and hr_data.get("bucket"):
-        for bucket in hr_data.get("bucket", []):
-            for dataset in bucket.get("dataset", []):
-                for point in dataset.get("point", []):
-                    for val in point.get("value", []):
-                        if val.get("key") == "bpm_avg":
-                            resting_hr = val.get("fpVal")
-
-    if rmssd is None and resting_hr is None:
+    if resting_hr is None:
         return False
 
     with get_conn() as conn:
         conn.execute("""
             INSERT OR REPLACE INTO fitbit_hrv (date, rmssd, resting_hr, coverage)
             VALUES (?,?,?,?)
-        """, (date_str, rmssd, resting_hr, coverage))
+        """, (date_str, None, resting_hr, None))
     return True
