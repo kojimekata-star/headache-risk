@@ -171,22 +171,19 @@ def sync_sleep(date_str: str) -> bool:
 def sync_hrv(date_str: str) -> bool:
     from datetime import datetime, timedelta
 
-    # 安静時心拍数を heart-rate データタイプから取得
+    # dailyRollUpで安静時心拍数を取得
     data = _health_get(
-        "/users/me/dataTypes/heart-rate/dataPoints",
-        params={"pageSize": 50}
+        "/users/me/dataTypes/daily-resting-heart-rate/dataPoints:dailyRollUp",
+        params={
+            "startDate": date_str,
+            "endDate": date_str,
+        }
     )
 
     resting_hr = None
     if data and data.get("dataPoints"):
-        for point in data["dataPoints"]:
-            hr_data = point.get("heartRate", {})
-            sample_time = hr_data.get("sampleTime", {}).get("physicalTime", "")
-            if sample_time.startswith(date_str):
-                bpm = hr_data.get("beatsPerMinute")
-                if bpm:
-                    resting_hr = bpm
-                    break
+        point = data["dataPoints"][0]
+        resting_hr = point.get("dailyRestingHeartRate", {}).get("beatsPerMinute")
 
     if resting_hr is None:
         return False
