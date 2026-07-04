@@ -6,9 +6,9 @@ from urllib.parse import urlencode
 from lib.database import get_conn
 
 SCOPES = [
-    "https://www.googleapis.com/auth/health.sleep.readonly",
-    "https://www.googleapis.com/auth/health.heart_rate.readonly",
-    "https://www.googleapis.com/auth/health.activity.readonly",
+    "https://www.googleapis.com/auth/googlehealth.sleep.readonly",
+    "https://www.googleapis.com/auth/googlehealth.health_metrics.readonly",
+    "https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly",
 ]
 
 def _creds():
@@ -100,45 +100,55 @@ def _health_get(path: str, params: dict = None) -> dict | None:
     )
     return resp.json()
 
-# デバッグ用（3_FitBit.pyから呼び出し）
 def _fitness_get(path: str, params: dict = None) -> dict | None:
     return _health_get(path, params)
 
 def sync_sleep(date_str: str) -> bool:
-    from datetime import datetime, timezone
-    dt = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
     data = _health_get(
-        "/users/-/sleepSessions",
-        params={
-            "startTime": dt.strftime("%Y-%m-%dT00:00:00Z"),
-            "endTime": dt.strftime("%Y-%m-%dT23:59:59Z"),
-        }
+        "/users/me/dataTypes/sleep/dataPoints",
+        params={"filter": f'sleep.interval.civil_end_time >= "{date_str}"'}
     )
-    if not data or not data.get("session"):
+    if not data or not data.get("dataPoints"):
         return False
-    session = data["session"][0]
-    start_ms = session.get("startTimeMillis", "0")
-    end_ms = session.get("endTimeMillis", "0")
-    duration_min = (int(end_ms) - int(start_ms)) // 60000
+    point = data["dataPoints"][0]
+    sleep = point.get("sleep", {})
+    interval = sleep.get("interval", {})
+    start_time = interval.get("startTime", "")
+    end_time = interval.get("endTime", "")
+    duration_min = 0
+    if start_time and end_time:
+        from datetime import datetime
+        try:
+            s = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
+            e = datetime.fromisoformat(end_time.replace("Z", "+00:00"))
+            duration_min = int((e - s).total_seconds() / 60)
+        except Exception:
+            pass
     with get_conn() as conn:
         conn.execute("""
             INSERT OR REPLACE INTO fitbit_sleep
             (date, sleep_start, sleep_end, duration_min, efficiency, deep_min, light_min, rem_min, wake_min)
             VALUES (?,?,?,?,?,?,?,?,?)
-        """, (date_str, start_ms, end_ms, duration_min, 0, 0, 0, 0, 0))
+        """, (date_str, start_time, end_time, duration_min, 0, 0, 0, 0, 0))
     return True
 
 def sync_hrv(date_str: str) -> bool:
-    from datetime import datetime, timezone
-    dt = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
     data = _health_get(
-        "/users/-/heartRate:dailyAggregation",
-        params={"date": date_str}
+        "/users/me/dataTypes/daily-resting-heart-rate/dataPoints:dailyRollUp",
+        params=None
     )
     resting_hr = None
-    if data and data.get("dailyHeartRateMetrics"):
-        metrics = data["dailyHeartRateMetrics"]
-        resting_hr = metrics.get("restingHeartRate")
+    if data and data.get("rollupDataPoints"):
+        for point in data["rollupDataPoints"]:
+            civil = point.get("civilStartTime", {}).get("date", {})
+            y = civil.get("year")
+            m = civil.get("month")
+            d = civil.get("day")
+            if y and m and d:
+                point_date = f"{y}-{m:02d}-{d:02d}"
+                if point_date == date_str:
+                    resting_hr = point.get("dailyRestingHeartRate", {}).get("beatsPerMinute")
+                    break
     if resting_hr is None:
         return False
     with get_conn() as conn:
