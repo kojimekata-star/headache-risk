@@ -98,7 +98,7 @@ def _fitness_get(path: str, params: dict = None) -> dict | None:
         params=params,
         timeout=10,
     )
-    return resp.json() if resp.status_code == 200 else None
+    return resp.json()
 
 def sync_sleep(date_str: str) -> bool:
     from datetime import datetime
