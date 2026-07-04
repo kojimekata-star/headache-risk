@@ -7,9 +7,9 @@ from lib.database import get_conn
 
 # Google Health API スコープ
 SCOPES = [
-    "https://www.googleapis.com/auth/health.heart_rate.readonly",
-    "https://www.googleapis.com/auth/health.sleep.readonly",
-    "https://www.googleapis.com/auth/health.activity.readonly",
+    "https://www.googleapis.com/auth/fitness.heart_rate.read",
+    "https://www.googleapis.com/auth/fitness.sleep.read",
+    "https://www.googleapis.com/auth/fitness.activity.read",
 ]
 
 def _creds():
