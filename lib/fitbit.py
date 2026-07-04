@@ -103,12 +103,19 @@ def _fitness_get(path: str, params: dict = None) -> dict | None:
     return _health_get(path, params)
 
 def sync_sleep(date_str: str) -> bool:
+    from datetime import datetime, timezone, timedelta
+    # 日本時間の date_str の日付に対応するUTC範囲を計算
+    # JST = UTC+9なので、date_str の前日15:00Z〜当日14:59Zを取得
+    dt = datetime.strptime(date_str, "%Y-%m-%d")
+    # civil_end_time でフィルタ（睡眠終了日が date_str の日）
     data = _health_get(
         "/users/me/dataTypes/sleep/dataPoints",
-        params={"filter": f'sleep.interval.civil_end_time >= "{date_str}"'}
+        params={"filter": f'sleep.interval.civil_end_time >= "{date_str}" AND sleep.interval.civil_end_time < "{(dt + timedelta(days=1)).strftime("%Y-%m-%d")}"'}
     )
     if not data or not data.get("dataPoints"):
         return False
+
+    # 最初のデータポイントを使用
     point = data["dataPoints"][0]
     sleep = point.get("sleep", {})
     interval = sleep.get("interval", {})
@@ -116,19 +123,40 @@ def sync_sleep(date_str: str) -> bool:
     end_time = interval.get("endTime", "")
     duration_min = 0
     if start_time and end_time:
-        from datetime import datetime
         try:
             s = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
             e = datetime.fromisoformat(end_time.replace("Z", "+00:00"))
             duration_min = int((e - s).total_seconds() / 60)
         except Exception:
             pass
+
+    # 睡眠ステージの集計
+    stages = sleep.get("stages", [])
+    deep_min = light_min = rem_min = wake_min = 0
+    for stage in stages:
+        stage_type = stage.get("type", "")
+        try:
+            st_start = datetime.fromisoformat(stage["startTime"].replace("Z", "+00:00"))
+            st_end = datetime.fromisoformat(stage["endTime"].replace("Z", "+00:00"))
+            mins = int((st_end - st_start).total_seconds() / 60)
+        except Exception:
+            mins = 0
+        if stage_type == "DEEP":
+            deep_min += mins
+        elif stage_type == "LIGHT":
+            light_min += mins
+        elif stage_type == "REM":
+            rem_min += mins
+        elif stage_type == "AWAKE":
+            wake_min += mins
+
     with get_conn() as conn:
         conn.execute("""
             INSERT OR REPLACE INTO fitbit_sleep
             (date, sleep_start, sleep_end, duration_min, efficiency, deep_min, light_min, rem_min, wake_min)
             VALUES (?,?,?,?,?,?,?,?,?)
-        """, (date_str, start_time, end_time, duration_min, 0, 0, 0, 0, 0))
+        """, (date_str, start_time, end_time, duration_min, 0,
+               deep_min, light_min, rem_min, wake_min))
     return True
 
 def sync_hrv(date_str: str) -> bool:
