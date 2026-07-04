@@ -111,16 +111,13 @@ if st.button("APIレスポンスを確認"):
     st.write("トークン存在:", token is not None)
     today = dt2.now().date().strftime("%Y-%m-%d")
     resp = requests.get(
-        "https://health.googleapis.com/v4/users/-/sleepSessions",
+        "https://health.googleapis.com/v4/users/me/dataTypes/sleep/dataPoints",
         headers={"Authorization": f"Bearer {token}"},
-        params={
-            "startTime": f"{today}T00:00:00Z",
-            "endTime": f"{today}T23:59:59Z",
-        },
+        params={"filter": f'sleep.interval.civil_end_time >= "{today}"'},
         timeout=10,
     )
     st.write("ステータスコード:", resp.status_code)
-    st.write("レスポンス:", resp.text[:2000])
+    st.write("レスポンス:", resp.text[:3000])
 st.divider()
 st.subheader("🔄 再認証")
 if st.button("トークンをリセットして再認証する", type="primary"):
