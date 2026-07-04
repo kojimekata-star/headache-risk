@@ -1,3 +1,4 @@
+import math
 import pandas as pd
 from datetime import datetime, timedelta
 from lib.database import get_conn
@@ -64,11 +65,19 @@ def compute_risk(date_str: str | None = None) -> dict:
     sleep = _sleep_score(date_str)
     hrv = _hrv_score(date_str)
     pressure = _pressure_score()
+    sleep = float(sleep) if sleep is not None else 0.5
+    hrv = float(hrv) if hrv is not None else 0.5
+    pressure = float(pressure) if pressure is not None else 0.3
+    if math.isnan(sleep): sleep = 0.5
+    if math.isnan(hrv): hrv = 0.5
+    if math.isnan(pressure): pressure = 0.3
     weights = {"sleep": 0.35, "hrv": 0.35, "pressure": 0.30}
     total = sleep * weights["sleep"] + hrv * weights["hrv"] + pressure * weights["pressure"]
     total = min(max(total, 0.0), 1.0)
 
     def pct(v):
+        v = float(v)
+        if math.isnan(v): return 0
         return round(min(max(v, 0.0), 1.0) * 100)
 
     return {
