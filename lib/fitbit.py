@@ -104,37 +104,39 @@ def _fitness_get(path: str, params: dict = None) -> dict | None:
 
 def sync_sleep(date_str: str) -> bool:
     from datetime import datetime, timedelta
-    dt = datetime.strptime(date_str, "%Y-%m-%d")
-    next_dt = dt + timedelta(days=1)
-    # startTimeのUTC範囲でフィルタ（就寝日基準）
-    # JST date_str の夜 = UTC 前日15:00〜当日14:59
-    utc_start = (dt - timedelta(hours=9)).strftime("%Y-%m-%dT15:00:00Z")
-    utc_end = (dt - timedelta(hours=9) + timedelta(days=1)).strftime("%Y-%m-%dT14:59:59Z")
     
+    # フィルターなしで最新データを取得してJST日付で判定
     data = _health_get(
         "/users/me/dataTypes/sleep/dataPoints",
-        params={"filter": f'sleep.interval.civil_end_time >= "{date_str}" AND sleep.interval.civil_end_time < "{next_dt.strftime("%Y-%m-%d")}"'}
+        params={"pageSize": 30}
     )
     if not data or not data.get("dataPoints"):
         return False
 
-    point = data["dataPoints"][0]
-    sleep = point.get("sleep", {})
+    # date_strに対応するJST就寝日のデータを探す
+    target_point = None
+    for point in data["dataPoints"]:
+        sleep = point.get("sleep", {})
+        interval = sleep.get("interval", {})
+        start_time = interval.get("startTime", "")
+        utc_offset_s = int(interval.get("startUtcOffset", "0s").rstrip("s"))
+        if start_time:
+            try:
+                s_utc = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
+                s_local = s_utc + timedelta(seconds=utc_offset_s)
+                if s_local.strftime("%Y-%m-%d") == date_str:
+                    target_point = point
+                    break
+            except Exception:
+                pass
+
+    if not target_point:
+        return False
+
+    sleep = target_point.get("sleep", {})
     interval = sleep.get("interval", {})
     start_time = interval.get("startTime", "")
     end_time = interval.get("endTime", "")
-    
-    # UTCオフセットからJST日付を計算
-    utc_offset_s = int(interval.get("startUtcOffset", "0s").rstrip("s"))
-    actual_date = date_str
-    if start_time:
-        try:
-            s_utc = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
-            s_local = s_utc + timedelta(seconds=utc_offset_s)
-            actual_date = s_local.strftime("%Y-%m-%d")
-        except Exception:
-            pass
-
     duration_min = 0
     if start_time and end_time:
         try:
@@ -164,7 +166,7 @@ def sync_sleep(date_str: str) -> bool:
             INSERT OR REPLACE INTO fitbit_sleep
             (date, sleep_start, sleep_end, duration_min, efficiency, deep_min, light_min, rem_min, wake_min)
             VALUES (?,?,?,?,?,?,?,?,?)
-        """, (actual_date, start_time, end_time, duration_min, 0,
+        """, (date_str, start_time, end_time, duration_min, 0,
                deep_min, light_min, rem_min, wake_min))
     return True
 
