@@ -193,7 +193,7 @@ with get_conn() as conn:
     """).fetchall()])
 
     df_export_headache = pd.DataFrame([dict(r) for r in conn.execute("""
-        SELECT onset_at, end_at, intensity, note FROM headache_events
+        SELECT onset_at, end_at, intensity FROM headache_events
         ORDER BY onset_at DESC
     """).fetchall()])
 
