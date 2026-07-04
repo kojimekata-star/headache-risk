@@ -121,3 +121,11 @@ if st.button("APIレスポンスを確認"):
     )
     st.write("ステータスコード:", resp.status_code)
     st.write("レスポンス:", resp.text[:2000])
+st.divider()
+st.subheader("🔄 再認証")
+if st.button("トークンをリセットして再認証する", type="primary"):
+    from lib.database import get_conn
+    with get_conn() as conn:
+        conn.execute("DELETE FROM fitbit_tokens")
+    st.success("トークンをリセットしました。Homeページから再認証してください。")
+    st.rerun()
