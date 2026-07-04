@@ -12,20 +12,15 @@ def _sleep_score(date_str: str) -> float:
             WHERE date <= ?
             ORDER BY date DESC LIMIT 30
         """, (date_str,)).fetchall()
-
     if not rows:
         return 0.5
-
     df = pd.DataFrame([dict(r) for r in rows])
     today = df.iloc[0]
     baseline = df.iloc[1:] if len(df) > 1 else df
-
     if baseline.empty or today["duration_min"] is None:
         return 0.5
-
     mean_dur = baseline["duration_min"].mean()
     std_dur = baseline["duration_min"].std() or 30
-
     dur_dev = abs(today["duration_min"] - mean_dur) / std_dur
     score = min(dur_dev / 3.0, 1.0)
     return round(score, 3)
@@ -38,21 +33,15 @@ def _hrv_score(date_str: str) -> float:
             WHERE date <= ? AND rmssd IS NOT NULL
             ORDER BY date DESC LIMIT 30
         """, (date_str,)).fetchall()
-
     if not rows:
         return 0.5
-
     df = pd.DataFrame([dict(r) for r in rows])
     today_rmssd = df.iloc[0]["rmssd"]
     baseline = df.iloc[1:] if len(df) > 1 else df
-
     if baseline.empty or today_rmssd is None:
         return 0.5
-
     mean_rmssd = baseline["rmssd"].mean()
     std_rmssd = baseline["rmssd"].std() or 5
-
-    # Low HRV (vs personal baseline) = higher risk
     z = (mean_rmssd - today_rmssd) / std_rmssd
     score = min(max(z / 3.0, 0.0), 1.0)
     return round(score, 3)
@@ -62,31 +51,25 @@ def _pressure_score() -> float:
     features = compute_pressure_features(hours=48)
     if features["max_change"] is None:
         return 0.3
-    # >10 hPa change in 48h → high risk
     change_risk = min(features["max_change"] / 10.0, 1.0)
-
-    # Rapid 6h drop also risky
     drop_risk = 0.0
     if features["change_6h"] is not None and features["change_6h"] < -3:
         drop_risk = min(abs(features["change_6h"]) / 8.0, 1.0)
-
     return round(max(change_risk, drop_risk), 3)
 
 
 def compute_risk(date_str: str | None = None) -> dict:
     if date_str is None:
         date_str = datetime.now().strftime("%Y-%m-%d")
-
     sleep = _sleep_score(date_str)
     hrv = _hrv_score(date_str)
     pressure = _pressure_score()
-
     weights = {"sleep": 0.35, "hrv": 0.35, "pressure": 0.30}
-   total = sleep * weights["sleep"] + hrv * weights["hrv"] + pressure * weights["pressure"]
+    total = sleep * weights["sleep"] + hrv * weights["hrv"] + pressure * weights["pressure"]
     total = min(max(total, 0.0), 1.0)
 
     def pct(v):
-        return round(min(max(v, 0.0), 1.0) * 100))
+        return round(min(max(v, 0.0), 1.0) * 100)
 
     return {
         "date": date_str,
