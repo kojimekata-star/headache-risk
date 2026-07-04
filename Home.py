@@ -47,6 +47,13 @@ elif not fitbit_connected:
     if st.button("⌚ Google Healthと連携する", type="primary"):
         auth_url = get_auth_url()
         st.markdown(f"[こちらをクリックして認証]({auth_url})")
+else:
+    if st.button("🔄 Google Healthを再認証する（スコープ更新時）"):
+        from lib.database import get_conn
+        with get_conn() as conn:
+            conn.execute("DELETE FROM fitbit_tokens WHERE id=1")
+        st.success("トークンを削除しました。ページを再読み込みしてください。")
+        st.rerun()
 
 st.subheader("ページ")
 st.page_link("pages/1_Dashboard.py", label="📊 ダッシュボード — 本日のリスクスコアと推移")
