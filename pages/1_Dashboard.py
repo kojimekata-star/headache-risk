@@ -176,3 +176,76 @@ fig_hist.update_layout(
 )
 st.plotly_chart(fig_hist, use_container_width=True)
 st.caption("▼ マーカーが頭痛発作。サイズは強度に比例。")
+st.divider()
+
+# --- CSV Export ---
+st.subheader("📥 データエクスポート")
+
+with get_conn() as conn:
+    df_export_sleep = pd.DataFrame([dict(r) for r in conn.execute("""
+        SELECT date, duration_min, deep_min, light_min, rem_min, wake_min
+        FROM fitbit_sleep ORDER BY date DESC
+    """).fetchall()])
+
+    df_export_hrv = pd.DataFrame([dict(r) for r in conn.execute("""
+        SELECT date, resting_hr FROM fitbit_hrv
+        WHERE resting_hr IS NOT NULL ORDER BY date DESC
+    """).fetchall()])
+
+    df_export_headache = pd.DataFrame([dict(r) for r in conn.execute("""
+        SELECT onset_at, end_at, intensity, note FROM headache_events
+        ORDER BY onset_at DESC
+    """).fetchall()])
+
+    df_export_pressure = pd.DataFrame([dict(r) for r in conn.execute("""
+        SELECT timestamp, pressure_hpa FROM pressure_log
+        ORDER BY timestamp DESC LIMIT 1000
+    """).fetchall()])
+
+# 結合データ（日付ベース）
+if not df_export_sleep.empty and not df_export_hrv.empty:
+    df_combined = pd.merge(df_export_sleep, df_export_hrv, on="date", how="outer").sort_values("date", ascending=False)
+elif not df_export_sleep.empty:
+    df_combined = df_export_sleep
+else:
+    df_combined = df_export_hrv if not df_export_hrv.empty else pd.DataFrame()
+
+col_dl1, col_dl2, col_dl3, col_dl4 = st.columns(4)
+
+with col_dl1:
+    if not df_combined.empty:
+        st.download_button(
+            "😴 睡眠・心拍CSV",
+            df_combined.to_csv(index=False, encoding="utf-8-sig"),
+            file_name=f"sleep_hrv_{today}.csv",
+            mime="text/csv",
+        )
+
+with col_dl2:
+    if not df_export_headache.empty:
+        st.download_button(
+            "🤕 頭痛記録CSV",
+            df_export_headache.to_csv(index=False, encoding="utf-8-sig"),
+            file_name=f"headache_{today}.csv",
+            mime="text/csv",
+        )
+
+with col_dl3:
+    if not df_export_pressure.empty:
+        st.download_button(
+            "🌪 気圧データCSV",
+            df_export_pressure.to_csv(index=False, encoding="utf-8-sig"),
+            file_name=f"pressure_{today}.csv",
+            mime="text/csv",
+        )
+
+with col_dl4:
+    # 全データ結合
+    risk_history = compute_risk_history(days=30)
+    df_risk = pd.DataFrame(risk_history)
+    st.download_button(
+        "📊 リスクスコアCSV",
+        df_risk.to_csv(index=False, encoding="utf-8-sig"),
+        file_name=f"risk_score_{today}.csv",
+        mime="text/csv",
+    )
