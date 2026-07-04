@@ -105,19 +105,16 @@ st.divider()
 st.subheader("🔍 デバッグ")
 if st.button("APIレスポンスを確認"):
     from lib.fitbit import _get_valid_token
-    from datetime import datetime as dt2
     import requests
     token = _get_valid_token()
     st.write("トークン存在:", token is not None)
-    today = dt2.now().date().strftime("%Y-%m-%d")
     resp = requests.get(
-        "https://health.googleapis.com/v4/users/me/dataTypes/sleep/dataPoints",
+        "https://health.googleapis.com/v4/users/me/dataTypes/daily-resting-heart-rate/dataPoints:dailyRollUp",
         headers={"Authorization": f"Bearer {token}"},
-        params={"filter": f'sleep.interval.civil_end_time >= "{today}"'},
         timeout=10,
     )
     st.write("ステータスコード:", resp.status_code)
-    st.write("レスポンス:", resp.text[:3000])
+    st.write("レスポンス:", resp.text[:2000])
 st.divider()
 st.subheader("🔄 再認証")
 if st.button("トークンをリセットして再認証する", type="primary"):
