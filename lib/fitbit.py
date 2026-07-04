@@ -171,19 +171,37 @@ def sync_sleep(date_str: str) -> bool:
 def sync_hrv(date_str: str) -> bool:
     from datetime import datetime, timedelta
 
-    # dailyRollUpで安静時心拍数を取得
-    data = _health_get(
-        "/users/me/dataTypes/daily-resting-heart-rate/dataPoints:dailyRollUp",
-        params={
-            "startDate": date_str,
-            "endDate": date_str,
-        }
-    )
+    token = _get_valid_token()
+    if not token:
+        return False
 
+    # 翌日の日付を計算
+    next_date = (datetime.strptime(date_str, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
+
+    # dailyRollUpはPOSTリクエスト
+    resp = requests.post(
+        "https://health.googleapis.com/v4/users/me/dataTypes/daily-resting-heart-rate/dataPoints:dailyRollUp",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "range": {
+                "start": {"year": int(date_str[:4]), "month": int(date_str[5:7]), "day": int(date_str[8:10])},
+                "end":   {"year": int(next_date[:4]), "month": int(next_date[5:7]), "day": int(next_date[8:10])},
+            }
+        },
+        timeout=10,
+    )
+    if not resp.ok:
+        raise RuntimeError(f"HTTP {resp.status_code}: {resp.text[:500]}")
+
+    data = resp.json()
     resting_hr = None
-    if data and data.get("dataPoints"):
-        point = data["dataPoints"][0]
-        resting_hr = point.get("dailyRestingHeartRate", {}).get("beatsPerMinute")
+    for point in data.get("rollupDataPoints", []):
+        hr_range = point.get("restingHeartRatePersonalRange", {})
+        bpm_min = hr_range.get("beatsPerMinuteMin")
+        bpm_max = hr_range.get("beatsPerMinuteMax")
+        if bpm_min and bpm_max:
+            resting_hr = (bpm_min + bpm_max) / 2  # 中央値を使用
+            break
 
     if resting_hr is None:
         return False
