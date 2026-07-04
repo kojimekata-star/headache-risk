@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(pip install *)",
+      "PowerShell(git *)",
+      "PowerShell(git config *)",
+      "PowerShell(gh auth *)",
+      "Bash(gh auth *)",
+      "Bash(gh api *)",
+      "Bash(git init *)",
+      "Bash(git add *)",
+      "Bash(sqlite3 data/headache.db \".tables\")",
+      "Bash(sqlite3 data/headache.db \"SELECT count\\(*\\) FROM sqlite_master;\")",
+      "Bash(python *)",
+      "Bash(git rm *)"
+    ]
+  }
+}
