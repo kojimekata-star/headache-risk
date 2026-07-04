@@ -1,15 +1,12 @@
-import os
 import streamlit as st
-from dotenv import load_dotenv
 from lib.database import init_db
 from lib.fitbit import get_tokens, get_auth_url, exchange_code, save_tokens
 
-load_dotenv()
 init_db()
 
 st.set_page_config(page_title="頭痛リスク", page_icon="🧠", layout="wide")
 
-# FitBit OAuth callback
+# Google OAuth callback
 params = st.query_params
 if "code" in params:
     code = params["code"]
@@ -17,13 +14,13 @@ if "code" in params:
         token_data = exchange_code(code)
         save_tokens(token_data)
         st.query_params.clear()
-        st.success("✅ FitBitとの連携が完了しました。")
+        st.success("✅ Google Healthとの連携が完了しました。")
         st.rerun()
     except Exception as e:
         st.error(f"認証エラー: {e}")
 
 fitbit_connected = get_tokens() is not None
-client_id_set = bool(os.getenv("FITBIT_CLIENT_ID"))
+client_id_set = bool(st.secrets.get("GOOGLE_CLIENT_ID", ""))
 
 st.title("🧠 頭痛リスク可視化")
 st.caption("睡眠・自律神経・気圧・生活リズムから個人内の頭痛リスクをスコア化します")
@@ -41,15 +38,13 @@ st.divider()
 if not client_id_set:
     st.info("""
     **セットアップ手順**
-    1. [dev.fitbit.com](https://dev.fitbit.com) で開発者アカウントを作成
-    2. "Register an App" → アプリ種別: **Personal**
-    3. Callback URL: `https://kojimekata-star-headache-risk-home-xwpblk.streamlit.app`
-    4. 取得した Client ID と Client Secret を `.env` ファイルに記入
-    5. アプリを再起動
+    1. Google Cloud Console でGoogle Health APIを有効化
+    2. OAuth クライアントIDを作成
+    3. Streamlit Cloud の Secrets に設定
     """)
 elif not fitbit_connected:
-    st.warning("FitBitとの連携が必要です。")
-    if st.button("⌚ FitBitと連携する", type="primary"):
+    st.warning("Google Healthとの連携が必要です。")
+    if st.button("⌚ Google Healthと連携する", type="primary"):
         auth_url = get_auth_url()
         st.markdown(f"[こちらをクリックして認証]({auth_url})")
 
