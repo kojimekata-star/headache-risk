@@ -184,8 +184,8 @@ def sync_hrv(date_str: str) -> bool:
         headers={"Authorization": f"Bearer {token}"},
         json={
             "range": {
-                "start": {"year": int(date_str[:4]), "month": int(date_str[5:7]), "day": int(date_str[8:10])},
-                "end":   {"year": int(next_date[:4]), "month": int(next_date[5:7]), "day": int(next_date[8:10])},
+                "start": {"date": {"year": int(date_str[:4]), "month": int(date_str[5:7]), "day": int(date_str[8:10])}},
+                "end":   {"date": {"year": int(next_date[:4]), "month": int(next_date[5:7]), "day": int(next_date[8:10])}},
             }
         },
         timeout=10,
