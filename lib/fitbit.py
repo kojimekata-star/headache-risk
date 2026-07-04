@@ -103,24 +103,38 @@ def _fitness_get(path: str, params: dict = None) -> dict | None:
     return _health_get(path, params)
 
 def sync_sleep(date_str: str) -> bool:
-    from datetime import datetime, timezone, timedelta
-    # 日本時間の date_str の日付に対応するUTC範囲を計算
-    # JST = UTC+9なので、date_str の前日15:00Z〜当日14:59Zを取得
+    from datetime import datetime, timedelta
     dt = datetime.strptime(date_str, "%Y-%m-%d")
-    # civil_end_time でフィルタ（睡眠終了日が date_str の日）
+    next_dt = dt + timedelta(days=1)
+    # startTimeのUTC範囲でフィルタ（就寝日基準）
+    # JST date_str の夜 = UTC 前日15:00〜当日14:59
+    utc_start = (dt - timedelta(hours=9)).strftime("%Y-%m-%dT15:00:00Z")
+    utc_end = (dt - timedelta(hours=9) + timedelta(days=1)).strftime("%Y-%m-%dT14:59:59Z")
+    
     data = _health_get(
         "/users/me/dataTypes/sleep/dataPoints",
-        params={"filter": f'sleep.interval.civil_end_time >= "{date_str}" AND sleep.interval.civil_end_time < "{(dt + timedelta(days=1)).strftime("%Y-%m-%d")}"'}
+        params={"filter": f'sleep.interval.civil_end_time >= "{date_str}" AND sleep.interval.civil_end_time < "{next_dt.strftime("%Y-%m-%d")}"'}
     )
     if not data or not data.get("dataPoints"):
         return False
 
-    # 最初のデータポイントを使用
     point = data["dataPoints"][0]
     sleep = point.get("sleep", {})
     interval = sleep.get("interval", {})
     start_time = interval.get("startTime", "")
     end_time = interval.get("endTime", "")
+    
+    # UTCオフセットからJST日付を計算
+    utc_offset_s = int(interval.get("startUtcOffset", "0s").rstrip("s"))
+    actual_date = date_str
+    if start_time:
+        try:
+            s_utc = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
+            s_local = s_utc + timedelta(seconds=utc_offset_s)
+            actual_date = s_local.strftime("%Y-%m-%d")
+        except Exception:
+            pass
+
     duration_min = 0
     if start_time and end_time:
         try:
@@ -130,7 +144,6 @@ def sync_sleep(date_str: str) -> bool:
         except Exception:
             pass
 
-    # 睡眠ステージの集計
     stages = sleep.get("stages", [])
     deep_min = light_min = rem_min = wake_min = 0
     for stage in stages:
@@ -141,21 +154,17 @@ def sync_sleep(date_str: str) -> bool:
             mins = int((st_end - st_start).total_seconds() / 60)
         except Exception:
             mins = 0
-        if stage_type == "DEEP":
-            deep_min += mins
-        elif stage_type == "LIGHT":
-            light_min += mins
-        elif stage_type == "REM":
-            rem_min += mins
-        elif stage_type == "AWAKE":
-            wake_min += mins
+        if stage_type == "DEEP": deep_min += mins
+        elif stage_type == "LIGHT": light_min += mins
+        elif stage_type == "REM": rem_min += mins
+        elif stage_type == "AWAKE": wake_min += mins
 
     with get_conn() as conn:
         conn.execute("""
             INSERT OR REPLACE INTO fitbit_sleep
             (date, sleep_start, sleep_end, duration_min, efficiency, deep_min, light_min, rem_min, wake_min)
             VALUES (?,?,?,?,?,?,?,?,?)
-        """, (date_str, start_time, end_time, duration_min, 0,
+        """, (actual_date, start_time, end_time, duration_min, 0,
                deep_min, light_min, rem_min, wake_min))
     return True
 
