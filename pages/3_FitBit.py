@@ -1,18 +1,15 @@
 import os
 import streamlit as st
 from datetime import datetime, timedelta
-from dotenv import load_dotenv
 from lib.database import init_db
 from lib.fitbit import get_tokens, get_auth_url, exchange_code, save_tokens, sync_sleep, sync_hrv
 from lib.pressure import sync_pressure
 
-load_dotenv()
 init_db()
 
 st.set_page_config(page_title="FitBit連携", page_icon="⌚", layout="wide")
 st.title("⌚ FitBit連携・データ同期")
 
-# OAuth callback handling (in case user lands here from redirect)
 params = st.query_params
 if "code" in params:
     code = params["code"]
@@ -25,9 +22,8 @@ if "code" in params:
     except Exception as e:
         st.error(f"認証エラー: {e}")
 
-# Connection status
 tokens = get_tokens()
-client_id = os.getenv("GOOGLE_CLIENT_ID", "")
+client_id = st.secrets.get("GOOGLE_CLIENT_ID", "")
 
 st.subheader("接続状態")
 col1, col2 = st.columns(2)
@@ -45,7 +41,7 @@ with col1:
 
 with col2:
     if not client_id:
-        st.warning(GOOGLE_CLIENT_SECRET が .env に未設定です")
+        st.warning("GOOGLE_CLIENT_ID が未設定です")
     elif not tokens:
         if st.button("⌚ FitBitと連携する", type="primary"):
             auth_url = get_auth_url()
@@ -53,7 +49,6 @@ with col2:
 
 st.divider()
 
-# Data sync
 st.subheader("データ同期")
 
 col_sync1, col_sync2 = st.columns(2)
@@ -90,7 +85,6 @@ with col_sync2:
 
 st.divider()
 
-# Sync log view
 st.subheader("同期済みデータ確認")
 from lib.database import get_conn
 with get_conn() as conn:
@@ -108,27 +102,3 @@ c2.metric("HRVデータ", f"{hrv_count}日分",
           delta=latest_hrv["date"] if latest_hrv else "なし")
 c3.metric("気圧データ", f"{pressure_count}件",
           delta=latest_pressure["timestamp"][:16] if latest_pressure else "なし")
-
-st.divider()
-st.subheader("FitBit開発者アカウントの作成方法")
-with st.expander("手順を見る"):
-    st.markdown("""
-    1. [dev.fitbit.com](https://dev.fitbit.com) にアクセス
-    2. 右上「Log In」→ FitBitアカウントでログイン
-    3. 「Register an App」をクリック
-    4. 以下を入力:
-       - **Application Name**: 任意（例: `headache-risk`）
-       - **Description**: 任意
-       - **Application Website URL**: `http://localhost`
-       - **OAuth 2.0 Application Type**: **Personal**
-       - **Redirect URL**: `https://kojimekata-star-headache-risk-home-xwpblk.streamlit.app`
-       - **Default Access Type**: Read-Only
-    5. 「Register」→ **OAuth 2.0 Client ID** と **Client Secret** をコピー
-    6. プロジェクトに `.env` ファイルを作成:
-    ```
-    FITBIT_CLIENT_ID=ここにClient IDを貼る
-    FITBIT_CLIENT_SECRET=ここにClient Secretを貼る
-    FITBIT_REDIRECT_URI=https://kojimekata-star-headache-risk-home-xwpblk.streamlit.app
-    ```
-    7. アプリを再起動して「FitBitと連携する」ボタンを押す
-    """)
