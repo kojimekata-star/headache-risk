@@ -104,18 +104,20 @@ c3.metric("気圧データ", f"{pressure_count}件",
 st.divider()
 st.subheader("🔍 デバッグ")
 if st.button("APIレスポンスを確認"):
-    from lib.fitbit import _fitness_get, _get_valid_token
+    from lib.fitbit import _get_valid_token
     from datetime import datetime as dt2
+    import requests
     token = _get_valid_token()
     st.write("トークン存在:", token is not None)
     today = dt2.now().date().strftime("%Y-%m-%d")
-    d = dt2.strptime(today, "%Y-%m-%d")
-    result = _fitness_get(
-        "/users/me/sessions",
+    resp = requests.get(
+        "https://health.googleapis.com/v4/users/-/sleepSessions",
+        headers={"Authorization": f"Bearer {token}"},
         params={
-            "startTime": d.strftime("%Y-%m-%dT00:00:00.000Z"),
-            "endTime": d.strftime("%Y-%m-%dT23:59:59.000Z"),
-            "activityType": 72,
-        }
+            "startTime": f"{today}T00:00:00Z",
+            "endTime": f"{today}T23:59:59Z",
+        },
+        timeout=10,
     )
-    st.write("APIレスポンス:", result)
+    st.write("ステータスコード:", resp.status_code)
+    st.write("レスポンス:", resp.text[:2000])
