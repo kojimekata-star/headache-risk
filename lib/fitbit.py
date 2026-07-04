@@ -184,11 +184,4 @@ def sync_hrv(date_str: str) -> bool:
             VALUES (?,?,?,?)
         """, (date_str, None, resting_hr, None))
     return True
-st.divider()
-st.subheader("🗑️ データリセット")
-if st.button("睡眠データをリセット", type="secondary"):
-    from lib.database import get_conn as get_conn3
-    with get_conn3() as conn:
-        conn.execute("DELETE FROM fitbit_sleep")
-    st.success("睡眠データをリセットしました。再同期してください。")
-    st.rerun()
+
