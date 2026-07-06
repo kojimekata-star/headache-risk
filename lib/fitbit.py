@@ -51,8 +51,9 @@ def save_tokens(token_data: dict):
     with get_conn() as conn:
         conn.execute("""
             INSERT OR REPLACE INTO fitbit_tokens (id, access_token, refresh_token, expires_at, fitbit_user_id)
-            VALUES (1, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?)
         """, (
+            1,
             token_data["access_token"],
             token_data.get("refresh_token", ""),
             int(time.time()) + token_data.get("expires_in", 3600),
