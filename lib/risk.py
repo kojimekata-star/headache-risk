@@ -30,20 +30,21 @@ def _sleep_score(date_str: str) -> float:
 def _hrv_score(date_str: str) -> float:
     with get_conn() as conn:
         rows = conn.execute("""
-            SELECT date, rmssd, resting_hr FROM fitbit_hrv
-            WHERE date <= ? AND rmssd IS NOT NULL
+            SELECT date, resting_hr FROM fitbit_hrv
+            WHERE date <= ? AND resting_hr IS NOT NULL
             ORDER BY date DESC LIMIT 30
         """, (date_str,)).fetchall()
     if not rows:
         return 0.5
     df = pd.DataFrame([dict(r) for r in rows])
-    today_rmssd = df.iloc[0]["rmssd"]
+    today_hr = df.iloc[0]["resting_hr"]
     baseline = df.iloc[1:] if len(df) > 1 else df
-    if baseline.empty or today_rmssd is None:
+    if baseline.empty or today_hr is None:
         return 0.5
-    mean_rmssd = baseline["rmssd"].mean()
-    std_rmssd = baseline["rmssd"].std() or 5
-    z = (mean_rmssd - today_rmssd) / std_rmssd
+    mean_hr = baseline["resting_hr"].mean()
+    std_hr = baseline["resting_hr"].std() or 3
+    # 安静時心拍数が平均より高いほどリスク上昇
+    z = (float(today_hr) - mean_hr) / std_hr
     score = min(max(z / 3.0, 0.0), 1.0)
     return round(score, 3)
 
