@@ -38,6 +38,10 @@ class SupabaseConn:
     def executescript(self, sql: str):
         pass
 
+    def executemany(self, sql: str, params_list):
+        for params in params_list:
+            SupabaseCursor(self.client, sql, params)
+
 
 class SupabaseRow(dict):
     def __getitem__(self, key):
