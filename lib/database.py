@@ -39,8 +39,23 @@ class SupabaseConn:
         pass
 
     def executemany(self, sql: str, params_list):
+        import re
+        table_match = re.search(r'INTO\s+(\w+)', sql, re.IGNORECASE)
+        if not table_match:
+            return
+        table = table_match.group(1).lower()
+        
+        # 辞書形式のパラメータをそのままupsert
+        records = []
         for params in params_list:
-            SupabaseCursor(self.client, sql, params)
+            if isinstance(params, dict):
+                records.append(params)
+        
+        if records:
+            # バッチでupsert（100件ずつ）
+            for i in range(0, len(records), 100):
+                batch = records[i:i+100]
+                self.client.table(table).upsert(batch).execute()
 
 
 class SupabaseRow(dict):
