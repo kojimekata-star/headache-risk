@@ -130,12 +130,14 @@ history = compute_risk_history(days=30)
 df_hist = pd.DataFrame(history)
 df_hist["date"] = pd.to_datetime(df_hist["date"])
 
+from datetime import timedelta
+thirty_days_ago = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
 with get_conn() as conn:
     event_rows = conn.execute("""
         SELECT onset_at, end_at, intensity FROM headache_events
-        WHERE onset_at >= date('now', '-30 days')
+        WHERE onset_at >= ?
         ORDER BY onset_at
-    """).fetchall()
+    """, (thirty_days_ago,)).fetchall()
 
 fig_hist = go.Figure()
 
@@ -213,32 +215,31 @@ else:
 col_dl1, col_dl2, col_dl3, col_dl4 = st.columns(4)
 
 with col_dl1:
-    if not df_combined.empty:
-        st.download_button(
-            "😴 睡眠・心拍CSV",
-            df_combined.to_csv(index=False, encoding="utf-8-sig"),
-            file_name=f"sleep_hrv_{today}.csv",
-            mime="text/csv",
-        )
+    st.download_button(
+        "😴 睡眠・心拍CSV",
+        df_combined.to_csv(index=False, encoding="utf-8-sig") if not df_combined.empty else "",
+        file_name=f"sleep_hrv_{today}.csv",
+        mime="text/csv",
+        disabled=df_combined.empty,
+    )
 
 with col_dl2:
-    if not df_export_headache.empty:
-        st.download_button(
-            "🤕 頭痛記録CSV",
-            df_export_headache.to_csv(index=False, encoding="utf-8-sig"),
-            file_name=f"headache_{today}.csv",
-            mime="text/csv",
-        )
+    st.download_button(
+        "🤕 頭痛記録CSV",
+        df_export_headache.to_csv(index=False, encoding="utf-8-sig") if not df_export_headache.empty else "",
+        file_name=f"headache_{today}.csv",
+        mime="text/csv",
+        disabled=df_export_headache.empty,
+    )
 
 with col_dl3:
-    if not df_export_pressure.empty:
-        st.download_button(
-            "🌪 気圧データCSV",
-            df_export_pressure.to_csv(index=False, encoding="utf-8-sig"),
-            file_name=f"pressure_{today}.csv",
-            mime="text/csv",
-        )
-
+    st.download_button(
+        "🌪 気圧データCSV",
+        df_export_pressure.to_csv(index=False, encoding="utf-8-sig") if not df_export_pressure.empty else "",
+        file_name=f"pressure_{today}.csv",
+        mime="text/csv",
+        disabled=df_export_pressure.empty,
+    )
 with col_dl4:
     # 全データ結合
     risk_history = compute_risk_history(days=30)
