@@ -1,6 +1,8 @@
 import streamlit as st
+from datetime import datetime, timedelta
 from lib.database import init_db
-from lib.fitbit import get_tokens, get_auth_url, exchange_code, save_tokens
+from lib.fitbit import get_tokens, get_auth_url, exchange_code, save_tokens, sync_sleep, sync_hrv
+from lib.pressure import sync_pressure
 
 init_db()
 
@@ -24,7 +26,6 @@ client_id_set = bool(st.secrets.get("GOOGLE_CLIENT_ID", ""))
 
 st.title("🧠 頭痛リスク可視化")
 st.caption("睡眠・自律神経・気圧・生活リズムから個人内の頭痛リスクをスコア化します")
-
 st.divider()
 
 col1, col2 = st.columns(2)
@@ -32,6 +33,26 @@ with col1:
     st.metric("FitBit", "✅ 連携済" if fitbit_connected else "❌ 未連携")
 with col2:
     st.metric("APIキー", "✅ 設定済" if client_id_set else "❌ 未設定")
+
+st.divider()
+
+# 自動同期
+if fitbit_connected:
+    today = datetime.now().strftime("%Y-%m-%d")
+    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+    
+    with st.spinner("データを自動同期中..."):
+        try:
+            # 今日と昨日の睡眠・HRVを同期
+            sync_sleep(today)
+            sync_sleep(yesterday)
+            sync_hrv(today)
+            sync_hrv(yesterday)
+            # 気圧データを同期（7日分）
+            sync_pressure(days=7)
+            st.success(f"✅ 自動同期完了（{today}）")
+        except Exception as e:
+            st.warning(f"自動同期でエラーが発生しました: {e}")
 
 st.divider()
 
@@ -48,7 +69,7 @@ elif not fitbit_connected:
         auth_url = get_auth_url()
         st.markdown(f"[こちらをクリックして認証]({auth_url})")
 else:
-    if st.button("🔄 Google Healthを再認証する（スコープ更新時）"):
+    if st.button("🔄 連携を更新する（週1回押してください）"):
         from lib.database import get_conn
         with get_conn() as conn:
             conn.execute("DELETE FROM fitbit_tokens WHERE id=1")
