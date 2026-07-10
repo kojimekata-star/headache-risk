@@ -41,16 +41,12 @@ if fitbit_connected:
     today = datetime.now().strftime("%Y-%m-%d")
     yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
     
-    with st.spinner("データを自動同期中..."):
+  with st.spinner("データを自動同期中..."):
         try:
-            # 今日と昨日の睡眠・HRVを同期
-            sync_sleep(today)
             sync_sleep(yesterday)
-            sync_hrv(today)
             sync_hrv(yesterday)
-            # 気圧データを同期（7日分）
-            sync_pressure(days=7)
-            st.success(f"✅ 自動同期完了（{today}）")
+            sync_pressure(days=1)
+            st.success(f"✅ 自動同期完了（{yesterday}）")
         except Exception as e:
             st.warning(f"自動同期でエラーが発生しました: {e}")
 
