@@ -36,19 +36,18 @@ with col2:
 
 st.divider()
 
-# 自動同期
-if fitbit_connected:
-    today = datetime.now().strftime("%Y-%m-%d")
-    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-    
-    with st.spinner("データを自動同期中..."):
-        try:
-            sync_sleep(yesterday)
-            sync_hrv(yesterday)
-            sync_pressure(days=1)
-            st.success(f"✅ 自動同期完了（{yesterday}）")
-        except Exception as e:
-            st.warning(f"自動同期でエラーが発生しました: {e}")
+# 自動同期（一時無効化）
+# if fitbit_connected:
+#     today = datetime.now().strftime("%Y-%m-%d")
+#     yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+#     with st.spinner("データを自動同期中..."):
+#         try:
+#             sync_sleep(yesterday)
+#             sync_hrv(yesterday)
+#             sync_pressure(days=1)
+#             st.success(f"✅ 自動同期完了（{yesterday}）")
+#         except Exception as e:
+#             st.warning(f"自動同期でエラーが発生しました: {e}")
 
 st.divider()
 
