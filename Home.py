@@ -41,7 +41,7 @@ if fitbit_connected:
     today = datetime.now().strftime("%Y-%m-%d")
     yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
     
-  with st.spinner("データを自動同期中..."):
+    with st.spinner("データを自動同期中..."):
         try:
             sync_sleep(yesterday)
             sync_hrv(yesterday)
