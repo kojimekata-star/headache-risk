@@ -194,9 +194,12 @@ with get_conn() as conn:
         WHERE resting_hr IS NOT NULL ORDER BY date DESC
     """).fetchall()])
 
-    df_export_headache = pd.DataFrame([dict(r) for r in conn.execute("""
-        SELECT onset_at, end_at, intensity FROM headache_events
-        ORDER BY onset_at DESC
+   df_export_headache = pd.DataFrame([dict(r) for r in conn.execute("""
+        SELECT h.id, h.onset_at, h.end_at, h.intensity, h.notes,
+               m.drug_name, m.dose_amount, m.dose_unit, m.taken_at
+        FROM headache_events h
+        LEFT JOIN medications m ON m.headache_event_id = h.id
+        ORDER BY h.onset_at DESC
     """).fetchall()])
 
     df_export_pressure = pd.DataFrame([dict(r) for r in conn.execute("""
