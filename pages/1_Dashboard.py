@@ -206,6 +206,11 @@ with get_conn() as conn:
         ORDER BY taken_at DESC
     """).fetchall()])
 
+    df_export_pressure = pd.DataFrame([dict(r) for r in conn.execute("""
+        SELECT timestamp, pressure_hpa FROM pressure_log
+        ORDER BY timestamp DESC LIMIT 1000
+    """).fetchall()])
+
 # 頭痛記録と服薬記録を結合
 if not df_export_headache.empty and not df_export_medications.empty:
     df_export_headache = pd.merge(
@@ -213,11 +218,6 @@ if not df_export_headache.empty and not df_export_medications.empty:
         left_on="id", right_on="headache_event_id",
         how="left"
     ).drop(columns=["headache_event_id"])
-
-    df_export_pressure = pd.DataFrame([dict(r) for r in conn.execute("""
-        SELECT timestamp, pressure_hpa FROM pressure_log
-        ORDER BY timestamp DESC LIMIT 1000
-    """).fetchall()])
 
 # 結合データ（日付ベース）
 if not df_export_sleep.empty and not df_export_hrv.empty:
