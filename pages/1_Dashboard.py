@@ -194,7 +194,7 @@ with get_conn() as conn:
         WHERE resting_hr IS NOT NULL ORDER BY date DESC
     """).fetchall()])
 
-   df_export_headache = pd.DataFrame([dict(r) for r in conn.execute("""
+    df_export_headache = pd.DataFrame([dict(r) for r in conn.execute("""
         SELECT h.id, h.onset_at, h.end_at, h.intensity, h.notes,
                m.drug_name, m.dose_amount, m.dose_unit, m.taken_at
         FROM headache_events h
