@@ -73,7 +73,7 @@ with st.expander("➕ 新しい頭痛を記録", expanded=st.session_state.get("
             add_end = st.checkbox("終了時刻も入力する")
             if add_end:
                 end_date = st.date_input("終了日", value=date.today(), key="end_d")
-               end_time = st.time_input("終了時刻", value=dtime(now_jst().hour, 0), key="end_t")
+                end_time = st.time_input("終了時刻", value=dtime(now_jst().hour, 0), key="end_t")
             
         intensity = st.slider("強度", 1, 10, 5, help="1=軽微、10=最大")
         notes = st.text_area("メモ（前兆・状況など）", height=80)
