@@ -217,7 +217,7 @@ if not df_export_headache.empty and not df_export_medications.empty:
         df_export_headache, df_export_medications,
         left_on="id", right_on="headache_event_id",
         how="left"
-    ).drop(columns=["headache_event_id", "id"])
+    ).drop(columns=["headache_event_id"], errors="ignore")
 
 # 結合データ（日付ベース）
 if not df_export_sleep.empty and not df_export_hrv.empty:
