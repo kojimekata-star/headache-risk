@@ -195,12 +195,24 @@ with get_conn() as conn:
     """).fetchall()])
 
     df_export_headache = pd.DataFrame([dict(r) for r in conn.execute("""
-        SELECT h.id, h.onset_at, h.end_at, h.intensity, h.notes,
-               m.drug_name, m.dose_amount, m.dose_unit, m.taken_at
-        FROM headache_events h
-        LEFT JOIN medications m ON m.headache_event_id = h.id
-        ORDER BY h.onset_at DESC
+        SELECT id, onset_at, end_at, intensity, notes
+        FROM headache_events
+        ORDER BY onset_at DESC
     """).fetchall()])
+
+    df_export_medications = pd.DataFrame([dict(r) for r in conn.execute("""
+        SELECT headache_event_id, drug_name, dose_amount, dose_unit, taken_at
+        FROM medications
+        ORDER BY taken_at DESC
+    """).fetchall()])
+
+# 頭痛記録と服薬記録を結合
+if not df_export_headache.empty and not df_export_medications.empty:
+    df_export_headache = pd.merge(
+        df_export_headache, df_export_medications,
+        left_on="id", right_on="headache_event_id",
+        how="left"
+    ).drop(columns=["headache_event_id"])
 
     df_export_pressure = pd.DataFrame([dict(r) for r in conn.execute("""
         SELECT timestamp, pressure_hpa FROM pressure_log
