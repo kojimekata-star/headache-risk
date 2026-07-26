@@ -217,8 +217,8 @@ if not df_export_headache.empty and not df_export_medications.empty:
         df_export_headache, df_export_medications,
         left_on="id", right_on="headache_event_id",
         how="left"
-    ).drop(columns=["headache_event_id"], errors="ignore")
-
+    ).drop(columns=["headache_event_id", "id_x", "id_y"], errors="ignore")
+    
 # 結合データ（日付ベース）
 if not df_export_sleep.empty and not df_export_hrv.empty:
     df_combined = pd.merge(df_export_sleep, df_export_hrv, on="date", how="outer").sort_values("date", ascending=False)
