@@ -21,9 +21,11 @@ def sync_pressure(days: int = 14) -> int:
             "start_date": start_date.strftime("%Y-%m-%d"),
             "end_date": end_date.strftime("%Y-%m-%d"),
             "timezone": "Asia/Tokyo",
+            "models": "jma_msm",
         },
         timeout=15,
     )
+    
     resp.raise_for_status()
     data = resp.json()
 
