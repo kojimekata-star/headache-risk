@@ -68,12 +68,12 @@ with st.expander("➕ 新しい頭痛を記録", expanded=st.session_state.get("
         col1, col2 = st.columns(2)
         with col1:
             onset_date = st.date_input("発症日", value=now_jst().date())
-            onset_time = st.time_input("発症時刻", value=dtime(now_jst().hour, 0))
+            onset_time = st.time_input("発症時刻", value=dtime(now_jst().hour, now_jst().minute), step=60)
         with col2:
             add_end = st.checkbox("終了時刻も入力する")
             if add_end:
                 end_date = st.date_input("終了日", value=now_jst().date(), key="end_d")
-                end_time = st.time_input("終了時刻", value=dtime(now_jst().hour, 0), key="end_t")
+                end_time = st.time_input("終了時刻", value=dtime(now_jst().hour, now_jst().minute), step=60, key="end_t")
             
         intensity = st.slider("強度", 1, 10, 5, help="1=軽微、10=最大")
         notes = st.text_area("メモ（前兆・状況など）", height=80)
@@ -117,7 +117,7 @@ else:
                 if not ev["end_at"]:
                     with st.form(f"end_{ev['id']}"):
                         end_d = st.date_input("終了日", value=now_jst().date(), key=f"ed_{ev['id']}")
-                        end_t = st.time_input("終了時刻", value=dtime(now_jst().hour, 0), key=f"et_{ev['id']}")
+                        end_t = st.time_input("終了時刻", value=dtime(now_jst().hour, now_jst().minute), step=60, key=f"et_{ev['id']}")
                         if st.form_submit_button("終了を記録"):
                             end_at = datetime.combine(end_d, end_t).strftime("%Y-%m-%d %H:%M")
                             with get_conn() as conn:
@@ -167,7 +167,7 @@ else:
                         dose_unit = st.selectbox("単位", ["mg", "錠", "包"], key=f"unit_{ev['id']}")
                 with c3:
                     taken_d = st.date_input("日付", value=now_jst().date(), key=f"td_{ev['id']}")
-                    taken_t = st.time_input("時刻", value=dtime(now_jst().hour, 0), key=f"tt_{ev['id']}")
+                    taken_t = st.time_input("時刻", value=dtime(now_jst().hour, now_jst().minute), step=60, key=f"tt_{ev['id']}")
                 if st.form_submit_button("服薬を追加"):
                     if drug_name:
                         taken_at = datetime.combine(taken_d, taken_t).strftime("%Y-%m-%d %H:%M")
