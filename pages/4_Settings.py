@@ -54,22 +54,3 @@ if st.button("保存", type="primary"):
     set_setting("lon", str(lon))
     set_setting("location_name", location_name)
     st.success(f"保存しました: {location_name} ({lat}, {lon})")
-
-st.divider()
-
-st.subheader("データ管理")
-with st.expander("⚠️ データを削除する"):
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("FitBitデータをクリア", type="secondary"):
-            from lib.database import get_conn
-            with get_conn() as conn:
-                conn.execute("DELETE FROM fitbit_sleep")
-                conn.execute("DELETE FROM fitbit_hrv")
-            st.success("FitBitデータを削除しました。")
-    with col2:
-        if st.button("気圧データをクリア", type="secondary"):
-            from lib.database import get_conn
-            with get_conn() as conn:
-                conn.execute("DELETE FROM pressure_log")
-            st.success("気圧データを削除しました。")

@@ -54,7 +54,7 @@ col_sync1, col_sync2 = st.columns(2)
 
 with col_sync1:
     st.markdown("**FitBitデータ（睡眠・HRV）**")
-    sync_days = st.slider("同期する日数", 1, 30, 14, key="sync_days")
+    sync_days = st.slider("同期する日数", 1, 30, 10, key="sync_days")
     if st.button("🔄 FitBitデータを同期", disabled=not tokens):
         if tokens:
             progress = st.progress(0)
@@ -101,33 +101,3 @@ c2.metric("HRVデータ", f"{hrv_count}日分",
           delta=latest_hrv["date"] if latest_hrv else "なし")
 c3.metric("気圧データ", f"{pressure_count}件",
           delta=latest_pressure["timestamp"][:16] if latest_pressure else "なし")
-st.divider()
-st.subheader("🔍 デバッグ")
-if st.button("APIレスポンスを確認"):
-    from lib.fitbit import _get_valid_token
-    import requests
-    token = _get_valid_token()
-    st.write("トークン存在:", token is not None)
-    resp = requests.get(
-        "https://health.googleapis.com/v4/users/me/dataTypes/daily-resting-heart-rate/dataPoints",
-        headers={"Authorization": f"Bearer {token}"},
-        params={"pageSize": 5},
-        timeout=10,
-    )
-    st.write("ステータスコード:", resp.status_code)
-    st.write("レスポンス:", resp.text[:2000])
-st.divider()
-st.subheader("🔄 再認証")
-if st.button("トークンをリセットして再認証する", type="primary"):
-    from lib.database import get_conn
-    with get_conn() as conn:
-        conn.execute("DELETE FROM fitbit_tokens")
-    st.success("トークンをリセットしました。Homeページから再認証してください。")
-    st.rerun()
-st.divider()
-st.subheader("🗑️ データリセット")
-if st.button("睡眠データをリセット", type="secondary"):
-    with get_conn() as conn:
-        conn.execute("DELETE FROM fitbit_sleep")
-    st.success("睡眠データをリセットしました。再同期してください。")
-    st.rerun()
