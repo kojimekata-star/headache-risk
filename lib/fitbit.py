@@ -19,7 +19,7 @@ def _creds():
 def _redirect_uri():
     return st.secrets.get("GOOGLE_REDIRECT_URI", os.getenv("GOOGLE_REDIRECT_URI", "https://kojimekata-star-headache-risk-home-xwpblk.streamlit.app"))
 
-def get_auth_url() -> str:
+def get_auth_url(login_hint: str | None = None) -> str:
     client_id, _ = _creds()
     params = {
         "client_id": client_id,
@@ -29,6 +29,8 @@ def get_auth_url() -> str:
         "access_type": "offline",
         "prompt": "consent",
     }
+    if login_hint:
+        params["login_hint"] = login_hint
     return f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
 
 def exchange_code(code: str) -> dict:
@@ -48,46 +50,65 @@ def exchange_code(code: str) -> dict:
     return resp.json()
 
 def save_tokens(token_data: dict):
+    # Googleが refresh_token を返さなかった場合は既存の値を保持する
+    refresh_token = token_data.get("refresh_token")
+    if not refresh_token:
+        existing = get_tokens()
+        refresh_token = existing.get("refresh_token", "") if existing else ""
     with get_conn() as conn:
         conn.execute("""
-            INSERT OR REPLACE INTO fitbit_tokens (id, access_token, refresh_token, expires_at, fitbit_user_id)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT OR REPLACE INTO fitbit_tokens (access_token, refresh_token, expires_at, fitbit_user_id)
+            VALUES (?, ?, ?, ?)
         """, (
-            1,
             token_data["access_token"],
-            token_data.get("refresh_token", ""),
+            refresh_token,
             int(time.time()) + token_data.get("expires_in", 3600),
             token_data.get("sub", ""),
         ))
 
 def get_tokens() -> dict | None:
     with get_conn() as conn:
-        row = conn.execute("SELECT * FROM fitbit_tokens WHERE id=1").fetchone()
+        row = conn.execute("SELECT * FROM fitbit_tokens").fetchone()
     return dict(row) if row else None
 
 def _get_valid_token() -> str | None:
+    """有効なアクセストークンを返す。失効・リフレッシュ失敗時は None（トークン行は消さない）。"""
     tokens = get_tokens()
     if not tokens:
         return None
-    if time.time() < tokens["expires_at"] - 60:
+    if tokens.get("access_token") and time.time() < (tokens.get("expires_at") or 0) - 60:
         return tokens["access_token"]
+    if not tokens.get("refresh_token"):
+        return None
     client_id, client_secret = _creds()
-    resp = requests.post(
-        "https://oauth2.googleapis.com/token",
-        data={
-            "grant_type": "refresh_token",
-            "refresh_token": tokens["refresh_token"],
-            "client_id": client_id,
-            "client_secret": client_secret,
-        },
-        timeout=10,
-    )
+    try:
+        resp = requests.post(
+            "https://oauth2.googleapis.com/token",
+            data={
+                "grant_type": "refresh_token",
+                "refresh_token": tokens["refresh_token"],
+                "client_id": client_id,
+                "client_secret": client_secret,
+            },
+            timeout=10,
+        )
+    except requests.RequestException:
+        return None
     if resp.status_code == 200:
         new_tokens = resp.json()
+        if not new_tokens.get("access_token"):
+            return None
         new_tokens.setdefault("refresh_token", tokens["refresh_token"])
         save_tokens(new_tokens)
         return new_tokens["access_token"]
+    # invalid_grant（約7日で失効）等
     return None
+
+def is_connected() -> bool:
+    """トークン行があり、かつ有効なアクセストークンを得られるときだけ True。"""
+    if not get_tokens():
+        return False
+    return _get_valid_token() is not None
 
 def _health_get(path: str, params: dict = None) -> dict | None:
     token = _get_valid_token()
