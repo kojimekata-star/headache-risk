@@ -8,6 +8,37 @@ def _get_supabase() -> Client:
     key = st.secrets.get("SUPABASE_KEY", os.getenv("SUPABASE_KEY", ""))
     return create_client(url, key)
 
+# ===== テナント分離 =====
+# patient_id で絞らない全体表（名簿）
+GLOBAL_TABLES = {"patients"}
+
+# upsert 時の衝突キー（各表の主キー）
+UPSERT_CONFLICT = {
+    "fitbit_tokens": "patient_id",
+    "fitbit_sleep": "patient_id,date",
+    "fitbit_hrv": "patient_id,date",
+    "pressure_log": "patient_id,timestamp",
+    "settings": "patient_id,key",
+}
+
+class TenantContextError(RuntimeError):
+    pass
+
+def _tenant_id(table):
+    """テナント表なら session の patient_id を返す。未設定なら例外（fail closed）。"""
+    if table in GLOBAL_TABLES:
+        return None
+    pid = st.session_state.get("patient_id")
+    if not pid:
+        raise TenantContextError("patient_id が未設定です")
+    return pid
+
+def _upsert(client, table, data):
+    on_conflict = UPSERT_CONFLICT.get(table)
+    if on_conflict:
+        return client.table(table).upsert(data, on_conflict=on_conflict).execute()
+    return client.table(table).upsert(data).execute()
+
 def init_db():
     pass  # Supabaseではテーブルをダッシュボードで作成済み
 
@@ -44,18 +75,22 @@ class SupabaseConn:
         if not table_match:
             return
         table = table_match.group(1).lower()
-        
-        # 辞書形式のパラメータをそのままupsert
+        pid = _tenant_id(table)
+
+        # 辞書形式のパラメータをupsert（patient_id は session の値で上書き）
         records = []
         for params in params_list:
             if isinstance(params, dict):
-                records.append(params)
-        
+                record = dict(params)
+                if pid:
+                    record["patient_id"] = pid
+                records.append(record)
+
         if records:
             # バッチでupsert（100件ずつ）
             for i in range(0, len(records), 100):
                 batch = records[i:i+100]
-                self.client.table(table).upsert(batch).execute()
+                _upsert(self.client, table, batch)
 
 
 class SupabaseRow(dict):
@@ -100,8 +135,11 @@ class SupabaseCursor:
         table = self._table_from_sql(sql)
         if not table:
             return []
+        pid = _tenant_id(table)
 
         query = self.client.table(table).select("*")
+        if pid:
+            query = query.eq("patient_id", pid)
 
         # WHERE句の解析
         where = re.search(r'WHERE\s+(.+?)(?:ORDER|LIMIT|$)', sql, re.IGNORECASE | re.DOTALL)
@@ -152,7 +190,12 @@ class SupabaseCursor:
             return [SupabaseRow({'c': count})]
 
         resp = query.execute()
-        return [SupabaseRow(r) for r in resp.data] if resp.data else []
+        if not resp.data:
+            return []
+        if pid:
+            # ページ側から見た列構成を従来どおりにする（patient_id は返さない）
+            return [SupabaseRow({k: v for k, v in r.items() if k != "patient_id"}) for r in resp.data]
+        return [SupabaseRow(r) for r in resp.data]
 
     def _handle_insert(self):
         import re
@@ -160,6 +203,7 @@ class SupabaseCursor:
         table = self._table_from_sql(sql)
         if not table:
             return
+        pid = _tenant_id(table)
 
         # カラム名取得
         cols_match = re.search(r'\(([^)]+)\)\s*VALUES', sql, re.IGNORECASE)
@@ -177,10 +221,12 @@ class SupabaseCursor:
         for i, col in enumerate(cols):
             if i < len(params):
                 data[col] = params[i]
+        if pid:
+            data["patient_id"] = pid  # 呼び出し側の値は信用しない
 
         # INSERT OR REPLACE → upsert
         if 'OR REPLACE' in sql.upper():
-            self.client.table(table).upsert(data).execute()
+            _upsert(self.client, table, data)
         elif 'OR IGNORE' in sql.upper():
             try:
                 self.client.table(table).insert(data).execute()
@@ -195,6 +241,7 @@ class SupabaseCursor:
         table = self._table_from_sql(sql)
         if not table:
             return
+        pid = _tenant_id(table)
 
         set_match = re.search(r'SET\s+(.+?)\s+WHERE', sql, re.IGNORECASE | re.DOTALL)
         where_match = re.search(r'WHERE\s+(.+?)$', sql, re.IGNORECASE | re.DOTALL)
@@ -214,8 +261,14 @@ class SupabaseCursor:
         where_col = where_match.group(1).split('=')[0].strip()
         where_val = params[param_idx] if param_idx < len(params) else None
 
+        if pid:
+            data.pop("patient_id", None)  # 他の患者へ付け替えさせない
+
         if where_val:
-            self.client.table(table).update(data).eq(where_col, where_val).execute()
+            query = self.client.table(table).update(data).eq(where_col, where_val)
+            if pid:
+                query = query.eq("patient_id", pid)
+            query.execute()
 
     def _handle_delete(self):
         import re
@@ -223,14 +276,44 @@ class SupabaseCursor:
         table = self._table_from_sql(sql)
         if not table:
             return
+        pid = _tenant_id(table)
 
-        where = re.search(r'WHERE\s+(.+?)$', sql, re.IGNORECASE)
-        if where and self.params:
-            col = where.group(1).split('=')[0].strip()
-            self.client.table(table).delete().eq(col, self.params[0]).execute()
-        else:
-            # WHERE句なし → 全削除
-            self.client.table(table).delete().neq('id', -1).execute()
+        where = re.search(r'WHERE\s+(.+?)\s*;?\s*$', sql, re.IGNORECASE | re.DOTALL)
+        if not where:
+            if pid:
+                raise ValueError(f"WHERE のない DELETE は禁止です: {table}")
+            raise ValueError(f"WHERE のない DELETE には対応していません: {table}")
+
+        conditions = where.group(1)
+        if re.search(r'\bOR\b', conditions, re.IGNORECASE):
+            raise ValueError(f"DELETE の条件を解釈できません: {conditions}")
+
+        # col = ? / col = リテラル を AND で連結したものだけ受け付ける
+        params = list(self.params)
+        param_idx = 0
+        eqs = []
+        for cond in re.split(r'\bAND\b', conditions, flags=re.IGNORECASE):
+            m = re.fullmatch(r'\s*(?:\w+\.)?(\w+)\s*=\s*(\?|-?\d+|\'[^\']*\'|"[^"]*")\s*', cond)
+            if not m:
+                raise ValueError(f"DELETE の条件を解釈できません: {cond.strip()}")
+            col, raw = m.group(1), m.group(2)
+            if raw == "?":
+                if param_idx >= len(params):
+                    raise ValueError("DELETE のパラメータが不足しています")
+                val = params[param_idx]
+                param_idx += 1
+            elif raw[0] in "'\"":
+                val = raw[1:-1]
+            else:
+                val = int(raw)
+            eqs.append((col, val))
+
+        query = self.client.table(table).delete()
+        for col, val in eqs:
+            query = query.eq(col, val)
+        if pid:
+            query = query.eq("patient_id", pid)
+        query.execute()
 
     def fetchone(self):
         if self._result:
