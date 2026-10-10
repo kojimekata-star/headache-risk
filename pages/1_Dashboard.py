@@ -5,6 +5,7 @@ import pandas as pd
 from datetime import datetime
 from dotenv import load_dotenv
 from lib.database import init_db, get_conn
+from lib.auth import require_patient, render_patient_badge
 from lib.risk import compute_risk, compute_risk_history
 from lib.pressure import get_recent_pressure, compute_pressure_features
 
@@ -12,6 +13,8 @@ load_dotenv()
 init_db()
 
 st.set_page_config(page_title="ダッシュボード", page_icon="📊", layout="wide")
+require_patient()
+render_patient_badge()
 st.title("📊 ダッシュボード")
 
 today = datetime.now().strftime("%Y-%m-%d")

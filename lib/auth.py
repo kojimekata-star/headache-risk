@@ -14,7 +14,8 @@ def require_patient() -> str:
     # 前のユーザーの値を持ち越さない
     st.session_state.pop("patient_id", None)
 
-    if not st.user.is_logged_in:
+    # [auth] 未設定時は is_logged_in 属性自体が無いので、未ログイン扱いにする
+    if not getattr(st.user, "is_logged_in", False):
         st.title("🧠 頭痛リスク可視化")
         st.info("このアプリは研究参加者専用です。登録済みのGoogleアカウントでログインしてください。")
         st.button("Googleでログイン", on_click=st.login, type="primary", key="login_button")

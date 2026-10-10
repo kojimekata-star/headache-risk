@@ -1,12 +1,16 @@
 import streamlit as st
 from datetime import datetime, timedelta
 from lib.database import init_db
-from lib.fitbit import get_tokens, get_auth_url, exchange_code, save_tokens, sync_sleep, sync_hrv
+from lib.auth import require_patient, render_patient_badge
+from lib.fitbit import get_tokens, get_auth_url, exchange_code, save_tokens, is_connected, sync_sleep, sync_hrv
 from lib.pressure import sync_pressure
 
 init_db()
 
 st.set_page_config(page_title="頭痛リスク", page_icon="🧠", layout="wide")
+
+pid = require_patient()
+render_patient_badge()
 
 # Google OAuth callback
 params = st.query_params
@@ -21,7 +25,8 @@ if "code" in params:
     except Exception as e:
         st.error(f"認証エラー: {e}")
 
-fitbit_connected = get_tokens() is not None
+has_tokens = get_tokens() is not None
+fitbit_connected = is_connected()
 client_id_set = bool(st.secrets.get("GOOGLE_CLIENT_ID", ""))
 
 st.title("🧠 頭痛リスク可視化")
@@ -58,18 +63,17 @@ if not client_id_set:
     2. OAuth クライアントIDを作成
     3. Streamlit Cloud の Secrets に設定
     """)
-elif not fitbit_connected:
-    st.warning("Google Healthとの連携が必要です。")
-    if st.button("⌚ Google Healthと連携する", type="primary"):
-        auth_url = get_auth_url()
-        st.markdown(f"[こちらをクリックして認証]({auth_url})")
 else:
-    if st.button("🔄 連携を更新する（週1回押してください）"):
-        from lib.database import get_conn
-        with get_conn() as conn:
-            conn.execute("DELETE FROM fitbit_tokens WHERE id=1")
-        st.success("トークンを削除しました。ページを再読み込みしてください。")
-        st.rerun()
+    # 再認証すると save_tokens が上書きするので、トークンは削除しない
+    auth_url = get_auth_url(login_hint=st.user.email)
+    if fitbit_connected:
+        st.link_button("🔄 連携を更新する（毎週日曜に押してください）", auth_url)
+    else:
+        if has_tokens:
+            st.warning("連携の有効期限が切れています。下のボタンから再連携してください。")
+        else:
+            st.warning("Google Healthとの連携が必要です。")
+        st.link_button("⌚ Google Healthと連携する", auth_url, type="primary")
 
 st.subheader("ページ")
 st.page_link("pages/1_Dashboard.py", label="📊 ダッシュボード — 本日のリスクスコアと推移")

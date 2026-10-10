@@ -7,11 +7,14 @@ def now_jst():
     return datetime.now(JST).replace(tzinfo=None)
 from dotenv import load_dotenv
 from lib.database import init_db, get_conn
+from lib.auth import require_patient, render_patient_badge
 
 load_dotenv()
 init_db()
 
 st.set_page_config(page_title="頭痛記録", page_icon="🤕", layout="wide")
+require_patient()
+render_patient_badge()
 st.title("🤕 頭痛・服薬記録")
 
 COMMON_DRUGS = [

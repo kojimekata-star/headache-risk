@@ -1,11 +1,14 @@
 import streamlit as st
 from dotenv import load_dotenv
 from lib.database import init_db, get_setting, set_setting
+from lib.auth import require_patient, render_patient_badge
 
 load_dotenv()
 init_db()
 
 st.set_page_config(page_title="設定", page_icon="⚙️", layout="wide")
+require_patient()
+render_patient_badge()
 st.title("⚙️ 設定")
 
 st.subheader("位置情報（気圧データ取得用）")

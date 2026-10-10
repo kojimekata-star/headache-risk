@@ -1,33 +1,27 @@
 import streamlit as st
 from datetime import datetime, timedelta
 from lib.database import init_db
-from lib.fitbit import get_tokens, get_auth_url, exchange_code, save_tokens, sync_sleep, sync_hrv
+from lib.auth import require_patient, render_patient_badge
+from lib.fitbit import get_tokens, get_auth_url, is_connected, sync_sleep, sync_hrv
 from lib.pressure import sync_pressure
 
 init_db()
 
 st.set_page_config(page_title="FitBit連携", page_icon="⌚", layout="wide")
+require_patient()
+render_patient_badge()
 st.title("⌚ FitBit連携・データ同期")
 
-params = st.query_params
-if "code" in params:
-    code = params["code"]
-    try:
-        token_data = exchange_code(code)
-        save_tokens(token_data)
-        st.query_params.clear()
-        st.success("✅ FitBitとの連携が完了しました。")
-        st.rerun()
-    except Exception as e:
-        st.error(f"認証エラー: {e}")
+# OAuth の戻り先はルートURL（Home.py）なので、このページでは ?code= を処理しない
 
+connected = is_connected()  # 必要ならここでリフレッシュされる
 tokens = get_tokens()
 client_id = st.secrets.get("GOOGLE_CLIENT_ID", "")
 
 st.subheader("接続状態")
 col1, col2 = st.columns(2)
 with col1:
-    if tokens:
+    if connected:
         st.success("✅ FitBit 連携済み")
         import time
         remaining = tokens["expires_at"] - int(time.time())
@@ -41,10 +35,12 @@ with col1:
 with col2:
     if not client_id:
         st.warning("GOOGLE_CLIENT_ID が未設定です")
-    elif not tokens:
-        if st.button("⌚ FitBitと連携する", type="primary"):
-            auth_url = get_auth_url()
-            st.markdown(f"[クリックして認証ページへ]({auth_url})")
+    else:
+        auth_url = get_auth_url(login_hint=st.user.email)
+        if connected:
+            st.link_button("🔄 連携を更新する（毎週日曜に押してください）", auth_url)
+        else:
+            st.link_button("⌚ Google Healthと連携する", auth_url, type="primary")
 
 st.divider()
 
